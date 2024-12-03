@@ -1,0 +1,30 @@
+(import (chezscheme)
+        (utils))
+
+(define (process-match match)
+  (let* ((maybe-numbers (string-slice match 4 -1))
+         (numbers-pair  (string-split-first maybe-numbers #\,))
+         (first         (car numbers-pair))
+         (second        (cdr numbers-pair))
+         (first-empty   (zero? (string-length first)))
+         (second-empty  (zero? (string-length second))))
+    (if
+     (and
+      (not first-empty)
+      (not second-empty)
+      (string-every char-numeric? first)
+      (string-every char-numeric? second))
+     (let ((first-num  (string->number first))
+           (second-num (string->number second)))
+       (* first-num second-num))
+     0)))
+
+(define (main input)
+  (let* ((lines        (read-lines input))
+         (line-matches (map (lambda (line) (find-between "mul(" ")" line)) lines))
+         (matches      (flatten line-matches))
+         (processed    (map process-match matches))
+         (total        (sum processed)))
+    (display total)))
+
+(main "mull-it-over.input")
