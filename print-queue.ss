@@ -1,0 +1,45 @@
+(library-directories '("."))
+(import (chezscheme)
+        (utils))
+
+(define (parse-rules input)
+  (define (parse-rule rule-str)
+    (let* ((parts (string-split-first rule-str #\|))
+           (a (string->number (car parts)))
+           (b (string->number (cdr parts))))
+      (cons a b)))
+  (map parse-rule (split-whitespace input)))
+
+(define (parse-pages input)
+  (define (parse-page page)
+    (map string->number
+         (string-split (lambda (c) (char=? c #\,)) page)))
+  (map parse-page (split-whitespace input)))
+
+(define (valid-order? nums rules)
+  (define (violates-rule? rule nums-list)
+    (let* ((before (car rule))
+           (after  (cdr rule))
+           (before-idx (list-index (lambda (x) (= x before)) nums-list))
+           (after-idx  (list-index (lambda (x) (= x after)) nums-list)))
+      (and before-idx
+           after-idx
+           (> before-idx after-idx))))
+  (not (exists (lambda (rule)
+                 (violates-rule? rule nums))
+               rules)))
+
+(define (main input)
+  (let* ((file         (read-to-string input))
+         (parts        (string-split-first-string file "\n\n"))
+         (rules-string (car parts))
+         (pages-string (cdr parts))
+         (rules        (parse-rules rules-string))
+         (pages        (parse-pages pages-string))
+         (valid-pages  (filter (lambda (page)
+                                 (valid-order? page rules))
+                               pages))
+         (middles      (map list-middle valid-pages)))
+    (display (sum middles))))
+
+(main "print-queue.input")
