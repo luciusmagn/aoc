@@ -1,0 +1,101 @@
+(library-directories '("."))
+(import (chezscheme)
+        (utils))
+
+(define (parse-lengths str)
+  (map (lambda (c) (- (char->integer c) (char->integer #\0))) (string->list str)))
+
+(define (fill-vector! vec value start count)
+  (let loop ((i 0))
+    (when (< i count) (vector-set! vec (+ start i) value)
+          (loop (+ i 1)))))
+
+(define (make-disk lengths)
+  (let* ((total-length (sum lengths))
+         (disk (make-vector total-length 'space)))
+    (let loop ((pos 0)
+               (file-id 0)
+               (lengths lengths))
+      (unless (null? lengths)
+        (let ((len (car lengths)))
+          (fill-vector! disk file-id pos len)
+          (loop (+ pos len (if (null? (cdr lengths)) 0 (cadr lengths)))
+                (+ file-id 1)
+                (if (null? (cdr lengths)) '() (cddr lengths))))))
+    disk))
+
+(define (find-file-span disk pos)
+  (let ((len (vector-length disk))
+        (file-id (vector-ref disk pos)))
+    (let loop ((end (+ pos 1)))
+      (if (or (>= end len) (not (eqv? (vector-ref disk end) file-id)))
+          (- end pos)
+          (loop (+ end 1))))))
+
+(define (find-space-span disk pos)
+  (let ((len (vector-length disk)))
+    (let loop ((end (+ pos 1)))
+      (if (or (>= end len) (not (eq? (vector-ref disk end) 'space)))
+          (- end pos)
+          (loop (+ end 1))))))
+
+(define (find-next-space disk start needed-length)
+  (let ((len (vector-length disk)))
+    (let loop ((i start))
+      (cond
+       ((>= i len) #f)
+       ((eq? (vector-ref disk i) 'space)
+        (let ((space-len (find-space-span disk i)))
+          (if (>= space-len needed-length)
+              i
+              (loop (+ i space-len)))))
+       (else (loop (+ i 1)))))))
+
+(define (move-file! disk from to length)
+  (let ((file-id (vector-ref disk from))) ; cp file to new loc
+    (fill-vector! disk file-id to length) ; fill old with space
+    (fill-vector! disk 'space from length)))
+
+(define (find-files disk)
+  (let ((len (vector-length disk)))
+    (let loop ((i 0) (files '()))
+      (if (>= i len)
+          (reverse files)
+          (if (number? (vector-ref disk i))
+              (let ((length (find-file-span disk i)))
+                (loop (+ i length)
+                      (cons (list (vector-ref disk i) i length) files)))
+              (loop (+ i 1) files))))))
+
+(define (compact-disk! disk)
+  (let* ((files (sort (lambda (a b) (> (car a) (car b))) (find-files disk)))) ; sort by id
+    (for-each
+     (lambda (file-info)
+       (let* ((file-id (car file-info))
+              (pos (cadr file-info))
+              (length (caddr file-info))
+              (space-pos (find-next-space disk 0 length)))
+         (when (and space-pos (< space-pos pos))
+           (move-file! disk pos space-pos length))))
+     files)))
+
+(define (calculate-checksum disk)
+  (let ((len (vector-length disk)))
+    (let loop ((i 0) (sum 0))
+      (if (>= i len)
+          sum
+          (loop (+ i 1)
+                (if (number? (vector-ref disk i))
+                    (+ sum (* i (vector-ref disk i)))
+                    sum))))))
+
+(define (main input)
+  (let* ((lines (read-lines input))
+         (first-line (car lines))
+         (lengths (parse-lengths first-line))
+         (disk (make-disk lengths)))
+    (compact-disk! disk)
+    (display (calculate-checksum disk))
+    (newline)))
+
+(main "disk-fragmenter.input")

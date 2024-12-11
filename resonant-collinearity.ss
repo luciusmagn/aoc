@@ -1,0 +1,43 @@
+(library-directories '("."))
+(import (chezscheme)
+        (utils))
+
+(define (find-antennas matrix)
+  (let* ((enumerated (matrix-enumerate matrix))
+         (non-dots (filter (lambda (p) (not (char=? (cdr p) #\.))) enumerated)))
+    (group-by cdr non-dots)))
+
+(define (get-antinode p1 p2 factor)
+  (point+ (car p1) (point-scale (point- (car p2) (car p1)) factor)))
+
+(define (antenna-pairs positions)
+  (flat-map (lambda (p1)
+              (map (lambda (p2) (cons p1 p2))
+                   (cdr (memq p1 positions))))
+            positions))
+
+(define (pair->antinodes pair rows cols)
+  (let ((p1 (car pair))
+        (p2 (cdr pair)))
+    (filter (matrix-in-bounds? rows cols)
+            (list (get-antinode p1 p2 2) (get-antinode p2 p1 2)))))
+
+(define (find-antinodes positions rows cols)
+  (if (< (length positions) 2)
+      '()
+      (flat-map (lambda (pair) (pair->antinodes pair rows cols))
+                (antenna-pairs positions))))
+
+(define (main input)
+  (let* ((lines (read-lines input))
+         (matrix (map string->list lines))
+         (rows (length matrix))
+         (cols (length (car matrix)))
+         (antennas (find-antennas matrix))
+         (antinode-finder (lambda (freq-group) (find-antinodes (cdr freq-group) rows cols)))
+         (all-antinodes (flat-map antinode-finder antennas))
+         (unique-antinodes (unique all-antinodes)))
+    (display (length unique-antinodes))
+    (newline)))
+
+(main "resonant-collinearity.input")

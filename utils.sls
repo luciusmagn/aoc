@@ -24,6 +24,25 @@
           list-index
           string-split-first-string
           any
+          fn
+          trace-block
+          flat-map
+          matrix-in-bounds?
+          point
+          point-x
+          point-y
+          point-map
+          point-
+          point+
+          point-scale
+          grid-points
+          group-by
+          trace
+          take
+          drop
+          fill-vector!
+          vector-find
+          vector-find-right
           string-split)
   (import (chezscheme))
 
@@ -107,6 +126,34 @@
                 (cdr after)
                 (cons (append before (cdr after))
                       acc)))))
+
+  ;; list-middle: (list-of Any) -> Any
+  ;; ---
+  ;; Returns middle element. For even length lists, returns element at len/2
+  (define (list-middle lst)
+    (let* ((len (length lst))
+           (mid (quotient len 2)))
+      (if (odd? len)
+          (list-ref lst mid)
+          (list-ref lst mid))))
+
+  ;; list-index: (Any -> Bool) (list-of Any) -> (or Integer #f)
+  ;; ---
+  ;; Returns index of first element matching predicate, or #f if none found
+  (define (list-index pred lst)
+    (let loop ((i 0) (l lst))
+      (cond ((null? l) #f)
+            ((pred (car l)) i)
+            (else (loop (+ i 1) (cdr l))))))
+
+  ;; any: (Any -> Bool) (list-of Any) -> Bool
+  ;; ---
+  ;; Returns #t if predicate is true for any element in list
+  (define (any pred lst)
+    (cond
+     ((null? lst) #f)
+     ((pred (car lst)) #t)
+     (else (any pred (cdr lst)))))
 
   ;; =============== String Operations ===============
 
@@ -211,6 +258,40 @@
                      (else (inner (+ j 1)))))
                   (loop (+ i 1) results)))))))
 
+  ;; string-split-first-string: String String -> (cons String String)
+  ;; ---
+  ;; Splits string on first occurrence of split_str into pair of strings
+  (define (string-split-first-string str split_str)
+    (let* ((len (string-length str))
+           (split-len (string-length split_str))
+           (pos (let loop ((i 0))
+                  (if (>= i (- len split-len))
+                      str ; If split_str not found, return -1
+                      (if (string=? (substring str i (+ i split-len)) split_str)
+                          i
+                          (loop (+ i 1))))))
+           (first-part (if (>= pos 0)
+                           (substring str 0 pos)
+                           str))
+           (second-part (if (>= pos 0)
+                            (substring str (+ pos split-len) len)
+                            "")))
+      (cons first-part second-part)))
+
+  ;; string-split: (Char -> Bool) String -> (list-of String)
+  ;; ---
+  ;; Splits string on characters matching delimiter predicate
+  (define (string-split char-delimiter? string)
+    (define (maybe-add a b parts)
+      (if (= a b) parts (cons (substring string a b) parts)))
+    (let ((n (string-length string)))
+      (let loop ((a 0) (b 0) (parts '()))
+        (if (< b n)
+            (if (not (char-delimiter? (string-ref string b)))
+                (loop a (+ b 1) parts)
+                (loop (+ b 1) (+ b 1) (maybe-add a b parts)))
+            (reverse (maybe-add a b parts))))))
+
   ;; =============== Number Operations ===============
 
   ;; strlist->numberlist: (list-of String) -> (list-of Number)
@@ -231,7 +312,11 @@
   (define (sum nums)
     (fold-left + 0 nums))
 
-  ;; =============== Dirty unsorted ===============
+  ;; =============== Matrix Operations ===============
+
+  ;; matrix-ref: (list-of (list-of Any)) Integer Integer -> Any
+  ;; ---
+  ;; Safely access matrix element at row/col. Returns #f if out of bounds
   (define (matrix-ref matrix row col)
     (and (>= row 0)
          (>= col 0)
@@ -239,6 +324,9 @@
          (< col (length (car matrix)))
          (list-ref (list-ref matrix row) col)))
 
+  ;; matrix-enumerate: (list-of (list-of Any)) -> (list-of (cons (cons Integer Integer) Any))
+  ;; ---
+  ;; Returns list of ((row . col) . value) for all matrix elements
   (define (matrix-enumerate matrix)
     (let loop-row ((row 0) (rows matrix))
       (if (null? rows)
@@ -250,47 +338,9 @@
                  (cons (cons row col) (car cols))
                  (loop-col (+ col 1) (cdr cols))))))))
 
-  (define (list-middle lst)
-    (let* ((len (length lst))
-           (mid (quotient len 2)))
-      (if (odd? len)
-          (list-ref lst mid)
-          (list-ref lst mid))))
-
-  (define (string-split-first-string str split_str)
-    (let* ((len (string-length str))
-           (split-len (string-length split_str))
-           (pos (let loop ((i 0))
-                  (if (>= i (- len split-len))
-                      str ; If split_str not found, return -1
-                      (if (string=? (substring str i (+ i split-len)) split_str)
-                          i
-                          (loop (+ i 1))))))
-           (first-part (if (>= pos 0)
-                           (substring str 0 pos)
-                           str))
-           (second-part (if (>= pos 0)
-                            (substring str (+ pos split-len) len)
-                            "")))
-      (cons first-part second-part)))
-
-  (define (string-split char-delimiter? string)
-    (define (maybe-add a b parts)
-      (if (= a b) parts (cons (substring string a b) parts)))
-    (let ((n (string-length string)))
-      (let loop ((a 0) (b 0) (parts '()))
-        (if (< b n)
-            (if (not (char-delimiter? (string-ref string b)))
-                (loop a (+ b 1) parts)
-                (loop (+ b 1) (+ b 1) (maybe-add a b parts)))
-            (reverse (maybe-add a b parts))))))
-
-  (define (list-index pred lst)
-    (let loop ((i 0) (l lst))
-      (cond ((null? l) #f)
-            ((pred (car l)) i)
-            (else (loop (+ i 1) (cdr l))))))
-
+  ;; matrix-find: (Any -> Bool) (list-of (list-of Any)) -> (cons (cons Integer Integer) Any)
+  ;; ---
+  ;; Finds first element matching predicate, returns ((row . col) . value) or #f
   (define (matrix-find pred matrix)
     (let ((enumerated (matrix-enumerate matrix)))
       (let loop ((items enumerated))
@@ -299,10 +349,124 @@
          ((pred (cdar items)) (car items))
          (else (loop (cdr items)))))))
 
-  (define (any pred lst)
-    (cond
-     ((null? lst) #f)
-     ((pred (car lst)) #t)
-     (else (any pred (cdr lst)))))
+  ;; =============== Macro Definitions ===============
 
-  )
+  ;; fn: Macro for creating curryable functions
+  ;; ---
+  ;; Creates function that can be partially applied
+  (define-syntax fn
+    (syntax-rules ()
+      [(_ (name args ...) body)
+       (define name
+         (letrec ([f (case-lambda
+                       [(args ...) body]
+                       [partial-args
+                        (lambda more-args
+                          (apply f (append partial-args more-args)))])])
+           f))]))
+
+  ;; trace-block: Macro for tracing expressions
+  ;; ---
+  ;; Displays and evaluates each expression, showing input and output
+  (define-syntax trace-block
+    (syntax-rules ()
+      [(_ expr ...)
+       (begin
+         (let ([result (begin
+                         (display ">> ")
+                         (write 'expr)
+                         (newline)
+                         expr)])
+           (display "<< ")
+           (write result)
+           (newline))
+         ...)]))
+
+  ;; =============== Macro Definitions ===============
+  (define (flat-map f list)
+    (flatten (map f list)))
+
+  ;; Check if point is within matrix bounds
+  (fn (matrix-in-bounds? rows cols point)
+      (let ((x (car point))
+            (y (cdr point)))
+        (and (>= x 0) (>= y 0) (< x cols) (< y rows))))
+
+  ;; Group values by key using provided key-fn
+  (define (group-by key-fn lst)
+    (fold-left (lambda (acc item)
+                 (let* ((key (key-fn item))
+                        (entry (assoc key acc)))
+                   (if entry
+                       (cons (cons key (cons item (cdr entry)))
+                             (remove (lambda (p) (eq? (car p) key)) acc))
+                       (cons (cons key (list item)) acc))))
+               '()
+               lst))
+
+  ;; =============== Unsorted todo ===============
+  ;; Pair operations on points
+  (define (point x y) (cons x y))
+  (define (point-x p) (car p))
+  (define (point-y p) (cdr p))
+
+  ;; Map operation on each coordinate of a point
+  (define (point-map f p1 p2)
+    (point (f (point-x p1) (point-x p2))
+           (f (point-y p1) (point-y p2))))
+
+  ;; Generate all points in a grid
+  (define (grid-points rows cols)
+    (flat-map (lambda (y)
+                (map (lambda (x) (point x y))
+                     (iota cols)))
+              (iota rows)))
+
+  (define (point- p1 p2)
+    (point (- (point-x p1) (point-x p2))
+           (- (point-y p1) (point-y p2))))
+
+  (define (point+ p1 p2)
+    (point (+ (point-x p1) (point-x p2))
+           (+ (point-y p1) (point-y p2))))
+
+  (define (point-scale p factor)
+    (point (* (point-x p) factor)
+           (* (point-y p) factor)))
+
+  ;; take: Integer (list-of Any) -> (list-of Any)
+  ;; ---
+  ;; Returns first n elements of list
+  (define (take lst n)
+    (if (or (= n 0) (null? lst))
+        '()
+        (cons (car lst) (take (- n 1) (cdr lst)))))
+
+  ;; drop: Integer (list-of Any) -> (list-of Any)
+  ;; ---
+  ;; Returns list without first n elements
+  (define (drop lst n)
+    (if (or (= n 0) (null? lst))
+        lst
+        (drop (- n 1) (cdr lst))))
+
+  (define (fill-vector! vec value start count)
+    (let loop ((i 0))
+      (when (< i count)
+        (vector-set! vec (+ start i) value)
+        (loop (+ i 1)))))
+
+  (define (vector-find pred vec start)
+    (let ((len (vector-length vec)))
+      (let loop ((i start))
+        (cond
+         ((>= i len) #f)
+         ((pred (vector-ref vec i)) i)
+         (else (loop (+ i 1)))))))
+
+  (define (vector-find-right pred vec end)
+    (let loop ((i (- end 1)))
+      (cond
+       ((< i 0) #f)
+       ((pred (vector-ref vec i)) i)
+       (else (loop (- i 1)))))))

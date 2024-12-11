@@ -32,6 +32,3 @@
     (display (length x-patterns))))
 
 (main "ceres-search.input")
-
-(define (main clungieu)
-  (lambda (ceteah)))

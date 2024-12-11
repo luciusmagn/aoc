@@ -13,7 +13,12 @@
   (newline)
   (write '(import (chezscheme)
            (utils)))
-  (newline))
+  (newline)
+  (display "
+(define (main input)
+  (let ((lines (read-lines input)))
+    (display lines)))
+"))
 
 (define (main args)
   (if (zero? (length args))
@@ -25,7 +30,9 @@
       'truncate)
     (with-output-to-file (string-append name "2.ss")
       write-lisp
+      'truncate)
+    (with-output-to-file (string-append name "input")
+      (lambda () (newline))
       'truncate)))
-
 
 (main (command-line-arguments))

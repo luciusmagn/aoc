@@ -1,0 +1,73 @@
+(library-directories '("."))
+(import (chezscheme)
+        (utils))
+
+(define (parse-lengths str)
+  (map (lambda (c) (- (char->integer c) (char->integer #\0)))
+       (string->list str)))
+
+(define (fill-vector! vec value start count)
+  (let loop ((i 0))
+    (when (< i count)
+      (vector-set! vec (+ start i) value)
+      (loop (+ i 1)))))
+
+(define (make-disk lengths)
+  (let* ((total-length (sum lengths))
+         (disk (make-vector total-length 'space)))
+    (let loop ((pos 0)
+               (file-id 0)
+               (lengths lengths))
+      (unless (null? lengths)
+        (let ((len (car lengths)))
+          (fill-vector! disk file-id pos len)
+          (loop (+ pos len (if (null? (cdr lengths)) 0 (cadr lengths)))
+                (+ file-id 1)
+                (if (null? (cdr lengths)) '() (cddr lengths))))))
+    disk))
+
+(define (find-next-space disk start)
+  (let ((len (vector-length disk)))
+    (let loop ((i start))
+      (cond
+       ((>= i len) #f)
+       ((eq? (vector-ref disk i) 'space) i)
+       (else (loop (+ i 1)))))))
+
+(define (find-last-file disk end)
+  (let loop ((i (- end 1)))
+    (cond
+     ((< i 0) #f)
+     ((number? (vector-ref disk i)) i)
+     (else (loop (- i 1))))))
+
+(define (compact-disk! disk)
+  (let ((len (vector-length disk)))
+    (let loop ((space 0) (file len))
+      (let ((space-pos (find-next-space disk space)))
+        (when space-pos
+          (let ((file-pos (find-last-file disk file)))
+            (when (and file-pos (> file-pos space-pos))
+              (vector-set! disk space-pos (vector-ref disk file-pos))
+              (vector-set! disk file-pos 'space)
+              (loop (+ space-pos 1) file-pos))))))))
+
+(define (calculate-checksum disk)
+  (let ((len (vector-length disk)))
+    (let loop ((i 0) (sum 0))
+      (if (>= i len)
+          sum
+          (loop (+ i 1)
+                (if (number? (vector-ref disk i))
+                    (+ sum (* i (vector-ref disk i)))
+                    sum))))))
+
+(define (main input)
+  (let* ((text (car (read-lines input)))
+         (lengths (parse-lengths text))
+         (disk (make-disk lengths)))
+    (compact-disk! disk)
+    (display (calculate-checksum disk))
+    (newline)))
+
+(main "disk-fragmenter.input")
